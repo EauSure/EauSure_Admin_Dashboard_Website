@@ -358,6 +358,10 @@
       "description": "Investigate incidents and run diagnostic procedures.",
       "workspace": "Admin-only diagnostics workspace",
       "action": "Investigate incidents, run system diagnostics, and resolve technical issues."
+    },
+    "maintenance": {
+      "title": "Maintain System",
+      "description": "Scheduling, journal, and new firmware version declarations."
     }
   },
   "manageUsers": {

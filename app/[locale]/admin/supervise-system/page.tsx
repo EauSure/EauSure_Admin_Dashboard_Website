@@ -3,7 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocale } from 'next-intl';
 import { toast } from 'sonner';
-import { MoreHorizontal, Search } from 'lucide-react';
+import {
+  Activity,
+  CheckCircle2,
+  CircleAlert,
+  Cpu,
+  Droplets,
+  Gauge,
+  HeartPulse,
+  MoreHorizontal,
+  PackagePlus,
+  RefreshCcw,
+  Search,
+  ShieldCheck,
+  Smile,
+  Timer,
+  TrendingUp,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/useT';
 
@@ -170,6 +187,41 @@ export default function SuperviseSystemPage() {
       setSaving(false);
     }
   };
+
+  const [preregisterForm, setPreregisterForm] = useState({
+    deviceId: 'CAP-PH-019',
+    type: 'Capteur pH',
+    location: 'Tunis Nord — Réservoir El Menzah',
+    installDate: '2026-05-22',
+  });
+
+  const handlePreregisterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    toast.success(`Équipement ${preregisterForm.deviceId} pré-enregistré.`);
+  };
+
+  const preregisteredDevices = [
+    { id: 'CAP-PH-014', type: 'Capteur pH', location: 'Tunis Centre — Bab Bhar', status: 'En ligne', lastSync: 'il y a 3 min' },
+    { id: 'CAP-TUR-007', type: 'Capteur turbidité', location: 'Sfax — Station El Aïn', status: 'En ligne', lastSync: 'il y a 6 min' },
+    { id: 'GW-SOU-04', type: 'Passerelle LoRa', location: 'Sousse — Port commercial', status: 'En ligne', lastSync: 'il y a 1 min' },
+    { id: 'CAP-PH-018', type: 'Capteur pH', location: 'Sfax — Réservoir Sidi Mansour', status: 'Hors ligne', lastSync: 'il y a 2 j' },
+    { id: 'CAP-TUR-011', type: 'Capteur turbidité', location: 'Bizerte — Lac Ichkeul', status: 'En ligne', lastSync: 'il y a 9 min' },
+    { id: 'GW-TUN-02', type: 'Passerelle LoRa', location: 'Tunis Sud — Mégrine', status: 'En ligne', lastSync: 'il y a 4 min' },
+  ];
+
+  const monthlyStats = [
+    { icon: Droplets, label: 'Total relevés ce mois', value: '184 320', sub: '+12,4 % vs mois précédent', tone: 'text-indigo-600' },
+    { icon: CircleAlert, label: 'Anomalies détectées', value: '37', sub: '6 critiques · 31 mineures', tone: 'text-amber-600' },
+    { icon: Gauge, label: 'pH moyen', value: '7,28', sub: 'Plage cible 6,5 – 8,5', tone: 'text-emerald-600' },
+    { icon: Activity, label: 'Turbidité moyenne', value: '2,1 NTU', sub: 'Conforme OMS (< 5 NTU)', tone: 'text-sky-600' },
+  ];
+
+  const effectivenessKpis = [
+    { icon: HeartPulse, label: "Disponibilité de la solution", value: 99.87, suffix: '%', tone: 'bg-emerald-500' },
+    { icon: CheckCircle2, label: 'Taux de résolution des incidents', value: 94.2, suffix: '%', tone: 'bg-indigo-500' },
+    { icon: Smile, label: 'Satisfaction utilisateurs', value: 88, suffix: '%', tone: 'bg-fuchsia-500' },
+    { icon: Timer, label: 'Temps de réponse moyen', value: 72, suffix: ' min', tone: 'bg-sky-500', max: 240 },
+  ];
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gray-50/70 px-5 py-8 dark:bg-background sm:px-8 sm:py-10">
@@ -373,6 +425,208 @@ export default function SuperviseSystemPage() {
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Appareils actifs</p>
+          <p className="text-2xl font-bold text-emerald-600">142</p>
+          <p className="mt-1 text-xs text-muted-foreground">94,7 % du parc</p>
+        </div>
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Hors ligne</p>
+          <p className="text-2xl font-bold text-red-600">8</p>
+          <p className="mt-1 text-xs text-muted-foreground">3 en intervention</p>
+        </div>
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Dernière synchronisation</p>
+          <p className="text-2xl font-bold">il y a 2 min</p>
+          <p className="mt-1 text-xs text-muted-foreground">Passerelle Tunis Centre</p>
+        </div>
+        <div className="rounded-2xl border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Total relevés ce mois</p>
+          <p className="text-2xl font-bold">184 320</p>
+          <p className="mt-1 text-xs text-emerald-600">+12,4 %</p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-col gap-1 border-b px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Cpu className="h-4 w-4 text-indigo-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Parc déployé</span>
+          </div>
+          <h2 className="text-base font-bold">Équipements pré-enregistrés</h2>
+          <p className="text-xs text-muted-foreground">Capteurs et passerelles déployés sur le territoire tunisien.</p>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Localisation</TableHead>
+              <TableHead>Statut</TableHead>
+              <TableHead>Dernière sync</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {preregisteredDevices.map((device) => (
+              <TableRow key={device.id}>
+                <TableCell>
+                  <Badge variant="outline" className="font-mono text-xs">{device.id}</Badge>
+                </TableCell>
+                <TableCell className="text-sm">{device.type}</TableCell>
+                <TableCell className="text-sm">{device.location}</TableCell>
+                <TableCell>
+                  <div className="inline-flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'relative inline-flex h-2.5 w-2.5 rounded-full',
+                        device.status === 'En ligne' ? 'bg-emerald-500' : 'bg-red-500'
+                      )}
+                    >
+                      {device.status === 'En ligne' ? (
+                        <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
+                      ) : null}
+                    </span>
+                    <span className="text-sm">{device.status}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{device.lastSync}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
+        <div className="flex items-start gap-4">
+          <div className="rounded-xl bg-emerald-100 p-3 dark:bg-emerald-500/20">
+            <ShieldCheck className="h-6 w-6 text-emerald-700 dark:text-emerald-300" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300">État global</p>
+            <h3 className="text-lg font-black text-emerald-900 dark:text-emerald-100">Opérationnel</h3>
+            <p className="text-sm text-emerald-800/90 dark:text-emerald-100/80">Tous les services critiques répondent dans les seuils. Aucune dégradation détectée sur les passerelles tunisiennes.</p>
+          </div>
+          <Badge className="border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200">Stable</Badge>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-col gap-1 border-b px-6 py-4">
+          <div className="flex items-center gap-2">
+            <PackagePlus className="h-4 w-4 text-indigo-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Pré-enregistrement</span>
+          </div>
+          <h2 className="text-base font-bold">Pré-enregistrer un équipement</h2>
+          <p className="text-xs text-muted-foreground">Créez la fiche logique avant l&apos;installation sur site.</p>
+        </div>
+        <form onSubmit={handlePreregisterSubmit} className="grid gap-4 p-6 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="prereg-device-id">ID appareil</label>
+            <Input
+              id="prereg-device-id"
+              value={preregisterForm.deviceId}
+              onChange={(event) => setPreregisterForm((prev) => ({ ...prev, deviceId: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="prereg-type">Type</label>
+            <Select
+              value={preregisterForm.type}
+              onValueChange={(value) => setPreregisterForm((prev) => ({ ...prev, type: value }))}
+            >
+              <SelectTrigger id="prereg-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Capteur pH">Capteur pH</SelectItem>
+                <SelectItem value="Capteur turbidité">Capteur turbidité</SelectItem>
+                <SelectItem value="Passerelle LoRa">Passerelle LoRa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="prereg-location">Localisation</label>
+            <Input
+              id="prereg-location"
+              value={preregisterForm.location}
+              onChange={(event) => setPreregisterForm((prev) => ({ ...prev, location: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground" htmlFor="prereg-install-date">Date d&apos;installation</label>
+            <Input
+              id="prereg-install-date"
+              type="date"
+              value={preregisterForm.installDate}
+              onChange={(event) => setPreregisterForm((prev) => ({ ...prev, installDate: event.target.value }))}
+            />
+          </div>
+          <div className="flex items-end justify-end md:col-span-2">
+            <Button type="submit" className="active:scale-95 transition-transform duration-100">
+              <PackagePlus className="me-2 h-4 w-4" /> Pré-enregistrer
+            </Button>
+          </div>
+        </form>
+      </div>
+
+      <div className="rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-col gap-1 border-b px-6 py-4">
+          <div className="flex items-center gap-2">
+            <RefreshCcw className="h-4 w-4 text-indigo-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Statistiques & retours</span>
+          </div>
+          <h2 className="text-base font-bold">Collecte mensuelle</h2>
+          <p className="text-xs text-muted-foreground">Indicateurs consolidés sur les 30 derniers jours.</p>
+        </div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+          {monthlyStats.map((stat) => (
+            <div key={stat.label} className="rounded-xl border bg-background p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className={cn('rounded-lg p-2 bg-muted', stat.tone)}>
+                  <stat.icon className="h-4 w-4" />
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">30 j</span>
+              </div>
+              <p className="text-2xl font-black">{stat.value}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{stat.label}</p>
+              <p className="mt-2 text-xs text-emerald-600">{stat.sub}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card shadow-sm">
+        <div className="flex flex-col gap-1 border-b px-6 py-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-indigo-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Efficacité</span>
+          </div>
+          <h2 className="text-base font-bold">Efficacité de la solution</h2>
+          <p className="text-xs text-muted-foreground">KPI de performance consolidés sur la flotte EauSûre.</p>
+        </div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+          {effectivenessKpis.map((kpi) => {
+            const max = kpi.max ?? 100;
+            const pct = Math.min(100, Math.round((kpi.value / max) * 100));
+            const display = kpi.suffix === '%' ? `${kpi.value} ${kpi.suffix}` : `${kpi.value}${kpi.suffix}`;
+
+            return (
+              <div key={kpi.label} className="rounded-xl border bg-background p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className={cn('rounded-lg p-2 text-white', kpi.tone)}>
+                    <kpi.icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-2xl font-black">{display}</span>
+                </div>
+                <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
+                <Progress value={pct} className="mt-3 h-1.5" />
+              </div>
+            );
+          })}
+        </div>
+      </div>
       </div>
     </div>
   );

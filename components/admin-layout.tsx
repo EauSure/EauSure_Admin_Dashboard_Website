@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { useLocale } from 'next-intl';
-import { Shield, Users, Activity, Rocket, Stethoscope } from 'lucide-react';
+import { Shield, Users, Activity, Rocket, Stethoscope, Wrench } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { AdminLanguageSelector } from '@/components/admin-language-selector';
 import { useT } from '@/lib/useT';
@@ -85,6 +85,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: t('manageUsers.title'), href: `/${locale}/admin/manage-users`, icon: Users },
     { name: t('superviseSystem.title'), href: `/${locale}/admin/supervise-system`, icon: Activity },
     { name: t('deployUpdates.title'), href: `/${locale}/admin/deploy-updates`, icon: Rocket },
+    { name: t('maintenance.title'), href: `/${locale}/admin/maintenance`, icon: Wrench },
     { name: t('diagnoseProblems.title'), href: `/${locale}/admin/diagnose-problems`, icon: Stethoscope },
   ];
 

@@ -9,19 +9,30 @@ const SUPPORTED_LOCALES = new Set(['fr', 'en', 'ar']);
 
 export function SettingsSyncProvider({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const { setTheme } = useTheme();
+  const { setTheme, theme: currentTheme } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
   const hasAppliedLocale = useRef(false);
+  const hasAppliedTheme = useRef(false);
 
   useEffect(() => {
-    if (session?.user?.theme) {
-      setTheme(session.user.theme);
+    if (hasAppliedTheme.current) return;
+    if (!session?.user) return;
+
+    hasAppliedTheme.current = true;
+
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('theme') : null;
+    if (stored) return;
+
+    const preferredTheme = session.user.theme;
+    if (preferredTheme && preferredTheme !== currentTheme) {
+      setTheme(preferredTheme);
     }
-  }, [session?.user?.theme, setTheme]);
+  }, [session, setTheme, currentTheme]);
 
   useEffect(() => {
-    if (!session || hasAppliedLocale.current) return;
+    if (hasAppliedLocale.current) return;
+    if (!session) return;
 
     hasAppliedLocale.current = true;
     const preferredLanguage = session.user?.language;
@@ -50,9 +61,7 @@ export function SettingsSyncProvider({ children }: { children: React.ReactNode }
           localStorage.setItem('sidebarCollapsed', String(user.sidebarCollapsed));
         }
       })
-      .catch(() => {
-        // Local storage is already a safe fallback for instant sidebar rendering.
-      });
+      .catch(() => {});
 
     return () => {
       cancelled = true;

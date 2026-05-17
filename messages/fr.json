@@ -358,6 +358,10 @@
       "description": "Enquêter sur les incidents et exécuter les procédures de diagnostic.",
       "workspace": "Espace de travail de diagnostic réservé aux administrateurs",
       "action": "Enquêter sur les incidents, exécuter les diagnostics système et résoudre les problèmes techniques."
+    },
+    "maintenance": {
+      "title": "Maintenir le système",
+      "description": "Planification, journal et déclaration des nouvelles versions firmware."
     }
   },
   "manageUsers": {
