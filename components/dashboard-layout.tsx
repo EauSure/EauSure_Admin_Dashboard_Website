@@ -12,19 +12,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { UserDropdown } from '@/components/user-dropdown';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/useT';
-import { useUserPreferences } from '@/components/providers/UserPreferencesProvider';
-import { 
-  LayoutDashboard, 
-  AlertTriangle, 
-  Settings, 
-  Cpu,
-  Wrench,
-  LifeBuoy,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  User
-} from 'lucide-react';
+import { LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type NavigationItem = {
   name: string;
@@ -64,19 +52,7 @@ export function DashboardLayout({
   const resolvedSignOutCallback = `/${locale}/auth/signin`;
   const hasMountedRef = useRef(false);
   const sidebarSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { preferences } = useUserPreferences();
-  
-  // Initialize state from localStorage immediately to avoid animation flash
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedState = localStorage.getItem(sidebarStorageKey);
-      if (savedState === null) {
-        return preferences.sidebarDefaultCollapsed;
-      }
-      return savedState === 'true';
-    }
-    return preferences.sidebarDefaultCollapsed;
-  });
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Save sidebar state to localStorage when it changes
   const toggleSidebar = () => {
@@ -84,6 +60,11 @@ export function DashboardLayout({
     setIsCollapsed(newState);
     localStorage.setItem(sidebarStorageKey, String(newState));
   };
+
+  useEffect(() => {
+    const savedState = localStorage.getItem(sidebarStorageKey);
+    setIsCollapsed(savedState === 'true');
+  }, [sidebarStorageKey]);
 
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -107,15 +88,7 @@ export function DashboardLayout({
     };
   }, [isCollapsed, sidebarStorageKey]);
 
-  const defaultNavigation: NavigationItem[] = [
-    { name: t('overview'), href: '/dashboard', icon: LayoutDashboard },
-    { name: t('devices'), href: '/dashboard/devices', icon: Cpu },
-    { name: t('alerts'), href: '/dashboard/alerts', icon: AlertTriangle },
-    { name: t('updates'), href: '/dashboard/updates', icon: Wrench },
-    { name: t('support'), href: '/dashboard/support', icon: LifeBuoy },
-    { name: t('profile'), href: '/dashboard/profile', icon: User },
-    { name: t('settings'), href: '/dashboard/settings', icon: Settings },
-  ];
+  const defaultNavigation: NavigationItem[] = [];
 
   const navigationItems = navigation ?? defaultNavigation;
 

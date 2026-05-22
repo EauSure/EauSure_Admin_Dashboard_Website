@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { LoginLanguageSelector } from '@/components/login-language-selector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,6 @@ import { useT } from '@/lib/useT';
 
 export default function AdminSignInPage() {
   const router = useRouter();
-  const params = useParams<{ locale?: string | string[] }>();
   const t = useT('home.auth.adminSignin');
 
   const [email, setEmail] = useState('');
@@ -23,9 +21,7 @@ export default function AdminSignInPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const locale = Array.isArray(params?.locale)
-    ? (params.locale[0] ?? 'fr')
-    : (params?.locale ?? 'fr');
+  const locale = 'fr';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,14 +44,6 @@ export default function AdminSignInPage() {
         return;
       }
 
-      await fetch('/api/locale', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ locale, scope: 'admin' }),
-      }).catch(() => null);
-
       router.push(`/${locale}/admin`);
       router.refresh();
     } catch {
@@ -66,7 +54,6 @@ export default function AdminSignInPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4">
-      <LoginLanguageSelector />
       <div className="absolute top-4 start-4">
         <ThemeToggle />
       </div>
@@ -127,13 +114,6 @@ export default function AdminSignInPage() {
             </CardFooter>
           </form>
         </Card>
-
-        <p className="text-[13px] text-muted-foreground text-center">
-          {t('operatorPrompt')}{' '}
-          <Link href={`/${locale}/auth/signin`} className="font-medium text-foreground hover:underline">
-            {t('operatorLink')}
-          </Link>
-        </p>
       </div>
     </div>
   );

@@ -52,10 +52,6 @@ export async function requireAdminContext(
 export async function requireOperatorContext(
   req: NextRequest
 ): Promise<RequestAuthContext | null> {
-  const auth = await getRequestAuthContext(req);
-  if (!auth || auth.role === 'admin') {
-    return null;
-  }
-
-  return auth;
+  void req;
+  return null;
 }

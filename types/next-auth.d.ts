@@ -9,6 +9,7 @@ declare module 'next-auth' {
       language?: 'fr' | 'en' | 'ar';
       theme?: 'light' | 'dark' | 'system';
     } & DefaultSession['user'];
+    accessToken?: string;
   }
 
   interface User {
@@ -18,6 +19,7 @@ declare module 'next-auth' {
     timezone?: string;
     language?: 'fr' | 'en' | 'ar';
     theme?: 'light' | 'dark' | 'system';
+    accessToken?: string;
   }
 }
 
@@ -30,5 +32,6 @@ declare module 'next-auth/jwt' {
     timezone?: string;
     language?: 'fr' | 'en' | 'ar';
     theme?: 'light' | 'dark' | 'system';
+    accessToken?: string;
   }
 }

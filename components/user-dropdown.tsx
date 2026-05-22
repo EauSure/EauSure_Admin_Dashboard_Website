@@ -28,8 +28,8 @@ function getLocaleFromPath(pathname: string): string {
 }
 
 export function UserDropdown({
-  profileHref = '/dashboard/profile',
-  settingsHref = '/dashboard/settings',
+  profileHref,
+  settingsHref,
   signOutCallbackUrl,
   showProfileSettings = true,
 }: UserDropdownProps) {
@@ -39,6 +39,8 @@ export function UserDropdown({
   const t = useT('userMenu');
 
   const locale = getLocaleFromPath(pathname);
+  const resolvedProfileHref = profileHref || `/${locale}/admin`;
+  const resolvedSettingsHref = settingsHref || `/${locale}/admin`;
   const resolvedSignOutCallback = signOutCallbackUrl || `/${locale}/auth/signin`;
 
   const handleSignOut = async () => {
@@ -95,11 +97,11 @@ export function UserDropdown({
         <DropdownMenuSeparator />
         {showProfileSettings && (
           <>
-            <DropdownMenuItem onClick={() => router.push(profileHref)}>
+            <DropdownMenuItem onClick={() => router.push(resolvedProfileHref)}>
               <User className="me-2 h-4 w-4" />
               <span>{t('profile')}</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push(settingsHref)}>
+            <DropdownMenuItem onClick={() => router.push(resolvedSettingsHref)}>
               <Settings className="me-2 h-4 w-4" />
               <span>{t('settings')}</span>
             </DropdownMenuItem>

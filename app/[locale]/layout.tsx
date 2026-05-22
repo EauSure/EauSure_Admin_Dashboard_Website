@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ParticlesBackground } from "@/components/ui/particles-background";
 import { LocaleDocumentAttributes } from "@/components/locale-document-attributes";
 
-const locales = ['en', 'fr', 'ar'];
+const locales = ['fr'];
 
 export default async function LocaleLayout({
   children,

@@ -1,15 +1,6 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { MongoDBAdapter } from '@auth/mongodb-adapter';
-import clientPromise from './mongodb';
-import { dbConnect } from './mongodb';
-import { comparePassword } from './auth';
-import {
-  getUserByEmail,
-  updateUserPresenceByEmail,
-  updateUserPresenceById,
-  type User,
-} from './user';
+import { getUserByEmail } from './user';
 
 const nextAuthSecret = process.env.NEXTAUTH_SECRET || '';
 const jwtSecret = process.env.JWT_SECRET || '';
@@ -23,9 +14,6 @@ if (jwtSecret && jwtSecret.length < 64) {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: MongoDBAdapter(clientPromise),
-  // NEXTAUTH_SECRET must be ≥64 chars. Rotate every 90 days.
-  // Rotating invalidates all existing sessions — warn users.
   cookies: {
     sessionToken: {
       name:
@@ -56,53 +44,61 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const requestedRole: 'user' | 'admin' =
-          credentials.role === 'admin' ? 'admin' : 'user';
+        const authBaseUrl = (
+          process.env.NEXT_PUBLIC_AUTH_API_URL ||
+          process.env.AUTH_API_URL ||
+          'https://eau-sure-app-auth.vercel.app/api'
+        ).replace(/\/$/, '');
 
-        const user = await getUserByEmail(credentials.email);
+        const loginResponse = await fetch(`${authBaseUrl}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
+          cache: 'no-store',
+        }).catch(() => null);
 
-        if (!user || !user.password) {
+        if (!loginResponse?.ok) {
           return null;
         }
 
-        const isPasswordValid = await comparePassword(
-          credentials.password,
-          user.password
-        );
-
-        if (!isPasswordValid) {
+        const loginPayload = await loginResponse.json().catch(() => null);
+        const accessToken = typeof loginPayload?.token === 'string' ? loginPayload.token : '';
+        if (!accessToken) {
           return null;
         }
 
-        if (user.status === 'suspended') {
+        const meResponse = await fetch(`${authBaseUrl}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          cache: 'no-store',
+        }).catch(() => null);
+
+        if (!meResponse?.ok) {
           return null;
         }
 
-        const actualRole: 'user' | 'admin' = user.role === 'admin' ? 'admin' : 'user';
-        const expectedRole =
-          credentials.expectedRole === 'admin'
-            ? 'admin'
-            : credentials.expectedRole === 'operator' || credentials.expectedRole === 'user'
-              ? 'user'
-              : null;
-
-        if (expectedRole && actualRole !== expectedRole) {
-          return null;
-        }
-
-        if (requestedRole === 'admin' && actualRole !== 'admin') {
+        const mePayload = await meResponse.json().catch(() => null);
+        const remoteUser = mePayload?.user;
+        const actualRole: 'user' | 'admin' = remoteUser?.role === 'admin' ? 'admin' : 'user';
+        if (actualRole !== 'admin') {
           return null;
         }
 
         return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
+          id: String(remoteUser?._id || remoteUser?.id || credentials.email),
+          email: String(remoteUser?.email || credentials.email),
+          name: String(remoteUser?.name || credentials.email),
           role: actualRole,
-          timezone: user.timezone ?? 'Africa/Tunis',
-          language: user.language ?? 'fr',
-          theme: user.theme ?? 'system',
-          rememberMe: credentials.rememberMe === 'true',
+          timezone: remoteUser?.timezone ?? 'Africa/Tunis',
+          language: remoteUser?.language ?? 'fr',
+          theme: remoteUser?.theme ?? 'system',
+          accessToken,
         };
       },
     }),
@@ -111,7 +107,7 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   pages: {
-    signIn: '/fr/auth/signin',
+    signIn: '/fr/admin/signin',
   },
   callbacks: {
     async jwt({ token, user, trigger }) {
@@ -124,107 +120,32 @@ export const authOptions: NextAuthOptions = {
         token.language = user.language ?? 'fr';
         token.theme = user.theme ?? 'system';
         token.rememberMe = user.rememberMe;
-
-        if (typeof user.email === 'string') {
-          await updateUserPresenceByEmail(user.email, 'online');
-        }
+        token.accessToken = user.accessToken;
       }
-      
-      // Refresh user data on session update
+
       if (trigger === 'update' && token.email) {
         const updatedUser = await getUserByEmail(token.email as string);
         if (updatedUser) {
           token.name = updatedUser.name;
           token.picture = updatedUser.image;
-          token.role = updatedUser.role === 'admin' ? 'admin' : 'user';
           token.timezone = updatedUser.timezone ?? 'Africa/Tunis';
           token.language = updatedUser.language ?? 'fr';
           token.theme = updatedUser.theme ?? 'system';
         }
       }
-      
+
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.email) {
         session.user.id = token.id as string;
-        session.user.role = (token.role === 'admin' ? 'admin' : 'user');
+        session.user.role = token.role === 'admin' ? 'admin' : 'user';
         session.user.timezone = token.timezone ?? 'Africa/Tunis';
         session.user.language = token.language ?? 'fr';
         session.user.theme = token.theme ?? 'system';
-        
-        // Fetch latest user data from database
-        const user = await getUserByEmail(token.email as string);
-        if (user) {
-          session.user.name = user.name;
-          session.user.email = user.email;
-          session.user.image = user.image || null;
-          session.user.role = user.role === 'admin' ? 'admin' : 'user';
-          session.user.timezone = user.timezone ?? 'Africa/Tunis';
-          session.user.language = user.language ?? 'fr';
-          session.user.theme = user.theme ?? 'system';
-        }
+        session.accessToken = typeof token.accessToken === 'string' ? token.accessToken : undefined;
       }
       return session;
-    },
-  },
-  events: {
-    async signIn({ user }) {
-      if (!user?.email) return;
-
-      try {
-        const client = await dbConnect();
-        const db = client.db(process.env.MONGODB_DB || 'water_quality');
-        const currentUser = await db
-          .collection('users')
-          .findOne<{ timezone?: string }>({ email: user.email }, { projection: { timezone: 1 } });
-
-        await db.collection<User>('users').updateOne(
-          { email: user.email },
-          {
-            $push: {
-              loginHistory: {
-                $each: [
-                  {
-                    timestamp: new Date(),
-                    timezone: currentUser?.timezone || 'Africa/Tunis',
-                  },
-                ],
-                $position: 0,
-                $slice: 5,
-              },
-            },
-          }
-        );
-      } catch (error) {
-        console.error('Failed to record login history:', error);
-      }
-    },
-    async signOut(message) {
-      const tokenUserId =
-        message && typeof message === 'object' && 'token' in message
-          ? (message.token?.id as string | undefined)
-          : undefined;
-      const tokenEmail =
-        message && typeof message === 'object' && 'token' in message
-          ? (message.token?.email as string | undefined)
-          : undefined;
-      const sessionEmail =
-        message && typeof message === 'object' && 'session' in message
-          ? message.session?.user?.email || undefined
-          : undefined;
-
-      if (tokenUserId) {
-        const updated = await updateUserPresenceById(tokenUserId, 'offline');
-        if (updated) {
-          return;
-        }
-      }
-
-      const email = tokenEmail || sessionEmail;
-      if (email) {
-        await updateUserPresenceByEmail(email, 'offline');
-      }
     },
   },
 };

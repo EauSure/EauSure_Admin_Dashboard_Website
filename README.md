@@ -1,309 +1,172 @@
 <div align="center">
 
-# 💧 EauSûre Dashboard
+<img
+  src="eausure_header.svg"
+  alt="Logo officiel EauSûre"
+/>
 
-### IoT Water Quality Monitoring Platform
+<br/>
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.1-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com)
-
-[Features](#-features) • [Demo](#-demo) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started) • [Deployment](#-deployment)
+<img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
+<img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+<img src="https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
+<img src="https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel" />
 
 </div>
 
----
-
-## 📋 Overview
+# EauSûre Web Admin
+
+Interface web d'administration de l'écosystème EauSûre.
+
+Elle centralise les usages administrateur de la plateforme :
+- authentification des administrateurs ;
+- supervision du parc passerelles et nœuds ;
+- consultation des métriques et statistiques d'évaluation d'efficacité ;
+- gestion des utilisateurs ;
+- pré-enregistrement du matériel ;
+- gestion des releases firmware ;
+- consultation de la documentation et des issues GitHub.
+
+## Portée
+
+L'écosystème EauSûre repose sur une fragmentation fonctionnelle des APIs. `Application_Web` n'embarque pas toute la logique métier : elle orchestre plusieurs services spécialisés via des routes proxy Next.js.
+
+- **Auth API** : connexion administrateur et validation d'identité ;
+- **Profile API** : lecture et mise à jour du profil administrateur ;
+- **Admin API** : gestion des utilisateurs, pré-enregistrement et releases FUOTA ;
+- **Hardware API** : supervision des gateways, nœuds, mesures et statistiques ;
+- **GitHub API** : consultation des dépôts, fichiers de documentation et tickets techniques.
+
+Dans cette architecture, `Application_Web` se concentre sur :
+- l'expérience d'administration ;
+- la composition des données issues des APIs ;
+- la protection d'accès côté serveur ;
+- la présentation des vues de diagnostic, supervision et déploiement.
+
+## Stack
+
+- Next.js 16 avec App Router
+- React 19
+- TypeScript
+- Tailwind CSS
+- NextAuth pour la session administrateur
+- MongoDB pour les données locales web
+- MQTT côté client pour le flux live
+- intégration GitHub pour la documentation et les issues
+
+## Écrans principaux
+
+- `/fr/admin/signin`
+- `/fr/admin`
+- `/fr/admin/supervise-system`
+- `/fr/admin/manage-users`
+- `/fr/admin/pre-register`
+- `/fr/admin/deploy-updates`
+- `/fr/admin/diagnose-problems`
+
+## APIs consommées
+
+### Authentification
+
+Le web admin s'appuie sur `Application_Auth_API` pour :
+- `POST /auth/login`
+- `GET /auth/me`
 
-**EauSûre** is a modern, full-stack IoT water monitoring dashboard built with Next.js 16 and the App Router. It provides real-time water quality analysis, device management, and intelligent alerting for water infrastructure monitoring.
-
-### ✨ Key Highlights
+### Profil
 
-- 🌊 **Real-time Monitoring** - Track water quality metrics across multiple wells and reservoirs
-- 🔐 **Secure Authentication** - NextAuth.js with MongoDB adapter for robust user management
-- 🌍 **Multi-language Support** - English, French, and Arabic (RTL) with next-intl
-- 🎨 **Modern UI/UX** - shadcn/ui components with Tailwind CSS v4
-- 📱 **Responsive Design** - Optimized for desktop, tablet, and mobile
-- 🌓 **Dark Mode** - Automatic theme switching with next-themes
-- ⚡ **Animated Background** - Beautiful tsParticles water bubble effects
-- 📊 **Data Visualization** - Interactive charts and KPI cards
-- 🔔 **Smart Alerts** - Real-time notifications for water quality issues
+Le web admin consomme `Application_Profile_API` via sa route proxy locale :
+- `GET /api/user/me`
+- `PATCH /api/user/me`
 
----
+### Administration
 
-## 🎯 Features
+Le web admin consomme `Application_Admin_API` pour :
+- `GET /api/users`
+- `PATCH /api/users/:id`
+- `GET /api/provisioning/pre-register`
+- `POST /api/provisioning/pre-register`
+- `GET /api/fuota/releases`
+- `POST /api/fuota/releases/inspect`
+- `POST /api/fuota/releases/upload`
 
-### 🏠 Dashboard
-- **Overview KPIs** - Water status, active alerts, gateway connectivity
-- **Animated Cards** - Smooth framer-motion animations
-- **Quick Stats** - At-a-glance water quality metrics
+### Matériel et télémétrie
 
-### 💧 Wells & Reservoirs
-- Comprehensive water source management
-- Real-time quality metrics
-- Historical data trends
+Le web admin consomme `Hardware_API` pour :
+- `GET /api/sensor-data`
+- `GET /api/sensor-data/latest`
+- `GET /api/sensor-data/stats`
+- `GET /api/gateways`
+- `GET /api/gateways/:gatewayId/nodes`
+- `POST /api/gateways/:gatewayId/nodes/:nodeId/measure`
 
-### 🚨 Alerts & Notifications
-- Critical water quality warnings
-- Customizable alert thresholds
-- Email notification support
+### Diagnostic GitHub
 
-### 🔧 Device Management
-- IoT device inventory
-- Gateway connectivity status
-- Device configuration
+Le web admin interroge l'API GitHub pour :
+- lister les dépôts ;
+- lire des fichiers de documentation ;
+- lister, créer et commenter des issues.
 
-### 👤 User Profile
-- Avatar customization
-- Personal information management
-- Organization and role settings
+## Variables d'environnement
 
-### ⚙️ Settings
-- **Preferences** - Timezone, units (metric/imperial)
-- **Notifications** - Email alerts, daily summaries
-- **Language** - English, French, Arabic
-- **Theme** - Light/Dark mode toggle
+Variables nécessaires au fonctionnement de base :
+- `MONGODB_URI`
+- `MONGODB_DB`
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
+- `AUTH_API_URL` 
+- `PROFILE_API_URL` 
+- `HARDWARE_API_URL`
+- `GITHUB_TOKEN`
+- `GITHUB_ORG`
+- `MAIL_PROVIDER`
+- `MAIL_FROM`
+- `NEXT_PUBLIC_MAPBOX_TOKEN`
+- `NEXT_PUBLIC_MQTT_BROKER_URL`
+- `NEXT_PUBLIC_MQTT_TOPIC`
 
----
+## Fonctionnement
 
-## 🛠️ Tech Stack
+### Authentification administrateur
 
-### Frontend
-- **Framework:** Next.js 16.1.6 (App Router + Turbopack)
-- **Language:** TypeScript 5
-- **UI Library:** React 19.2
-- **Styling:** Tailwind CSS v4
-- **Components:** shadcn/ui + Radix UI
-- **Animations:** Framer Motion + tsParticles
-- **Forms:** React Hook Form + Zod validation
-- **Icons:** Lucide React
+L'authentification passe par NextAuth avec un provider `Credentials`.
 
-### Backend
-- **Authentication:** NextAuth.js v4
-- **Database:** MongoDB Atlas
-- **ODM:** MongoDB Node.js Driver
-- **Password Hashing:** bcryptjs
+Au login :
+- le web appelle `Application_Auth_API` ;
+- récupère un `accessToken` ;
+- vérifie que le rôle retourné est bien `admin` ;
+- stocke ensuite une session JWT côté web.
 
-### Internationalization
-- **i18n:** next-intl
-- **Languages:** English, French, Arabic (RTL support)
+### Supervision matérielle
 
-### DevOps
-- **Hosting:** Vercel
-- **Version Control:** Git
-- **Package Manager:** npm
+Les pages d'administration interrogent les routes proxy locales `/api/eausure/*`.
 
----
+Ces routes :
+- récupèrent la session administrateur ;
+- transmettent le bearer token à `Hardware_API` ;
+- normalisent les erreurs avant retour à l'UI.
 
-## 🚀 Getting Started
+### Gestion d'utilisateurs et FUOTA
 
-### Prerequisites
+Les pages `manage-users`, `pre-register` et `deploy-updates` passent par les routes proxy locales `/api/admin/*`.
 
-- Node.js 20+ 
-- npm or yarn
-- MongoDB Atlas account
-- Git
+Cette couche :
+- protège l'accès côté serveur ;
+- relaie les appels à `Application_Admin_API` ;
+- évite d'exposer directement les URLs backend à l'interface.
 
-### 1. Clone the Repository
+### Diagnostic et documentation
 
-```bash
-git clone https://github.com/EauSure/eau_pure_dash.git
-cd eau_pure_dash
-```
+La page `diagnose-problems` s'appuie sur des routes `/api/github/*` pour :
+- parcourir des dépôts ;
+- lire des fichiers Markdown ;
+- suivre les issues techniques.
 
-### 2. Install Dependencies
+### Réinitialisation de mot de passe
 
-```bash
-npm install
-```
+Le web expose :
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
 
-### 3. Environment Variables
+La demande crée un jeton temporaire en base, puis envoie un email via `Resend` ou `Brevo` selon la configuration.
 
-Create a `.env.local` file in the root directory:
-
-```env
-# MongoDB Connection
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
-
-# NextAuth Configuration
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-secret-key-here
-
-# Password Reset Email (Resend)
-RESEND_API_KEY=re_xxxxxxxxx
-MAIL_FROM=onboarding@resend.dev
-APP_NAME=EauSure
-```
-
-**Generate NEXTAUTH_SECRET:**
-```bash
-# On Mac/Linux
-openssl rand -base64 32
-
-# On Windows PowerShell
-[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }) -as [byte[]])
-```
-
-### 4. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see the application.
-
-### 5. Build for Production
-
-```bash
-npm run build
-npm start
-```
-
----
-
-## 📦 Deployment
-
-### Deploy to Vercel (Recommended)
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/EauSure/eau_pure_dash)
-
-#### Manual Deployment
-
-1. **Push to GitHub**
-   ```bash
-   git add .
-   git commit -m "Ready for production"
-   git push origin main
-   ```
-
-2. **Import to Vercel**
-   - Go to [vercel.com](https://vercel.com)
-   - Click "Add New" → "Project"
-   - Import your GitHub repository
-
-3. **Configure Environment Variables**
-   Add these in Vercel dashboard:
-   - `MONGODB_URI` - Your MongoDB connection string
-   - `NEXTAUTH_SECRET` - Generated secret key
-   - `NEXTAUTH_URL` - Auto-set by Vercel (optional)
-
-4. **Deploy**
-   - Click "Deploy"
-   - Wait 2-3 minutes for build
-
-📖 **Detailed Guide:** See [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)
-
----
-
-## 📁 Project Structure
-
-```
-eau_sure_dash/
-├── app/                      # Next.js App Router
-│   ├── [locale]/            # Internationalized routes
-│   │   ├── auth/           # Authentication pages
-│   │   └── dashboard/      # Dashboard pages
-│   ├── api/                # API routes
-│   └── globals.css         # Global styles
-├── components/             # React components
-│   ├── ui/                # shadcn/ui components
-│   └── ...                # Custom components
-├── lib/                   # Utility functions
-├── messages/              # i18n translations
-├── types/                 # TypeScript definitions
-└── public/               # Static assets
-```
-
----
-
-## 🎨 Screenshots
-
-### Dashboard Overview
-> Modern, clean interface with real-time water quality metrics
-
-### Dark Mode
-> Beautiful dark theme with animated particle background
-
-### Multi-language Support
-> Seamless language switching (EN/FR/AR)
-
----
-
-## 🔧 Configuration
-
-### Customization
-
-**Theme Colors:** Edit `app/globals.css`
-```css
-:root {
-  --primary: oklch(0.45 0.18 250);
-  --background: oklch(0.985 0.003 240);
-  /* ... */
-}
-```
-
-**Animations:** Modify `components/ui/particles-background.tsx`
-```typescript
-const DEBUG = false; // Set to true for testing
-```
-
-**Sidebar:** Collapsible sidebar state persists in localStorage
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome!
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## ⭐ Show Your Support
-
-Give a ⭐️ if this project helped you!
-
----
-
-## � Authors
-
-### 👤 **Adam Farjeoui**
-
-- 🌐 Website: [farjeoui-portfolio.vercel.app](https://farjeoui-portfolio.vercel.app)
-- 💻 Github: [@adam-dev-hub](https://github.com/adam-dev-hub)
-- 💼 LinkedIn: [@Adam Al Farjeoui](https://www.linkedin.com/in/adam-al-farjeoui)
-
-### 👤 **Med Rayen Trabelsi**
-
-- 🌐 Website: [trabelsimedrayen.tech](https://www.trabelsimedrayen.tech/)
-- 💻 Github: [@Mohamed Rayen Trabelsi](https://github.com/Mohamed-Rayen-Trabelsi)
-- 💼 LinkedIn: [@Mohamed Rayen Trabelsi](https://www.linkedin.com/in/mohamed-rayen-trabelsi)
-
----
-
-## 📧 Contact
-
-**Project Link:** [https://github.com/YOUR_USERNAME/eau_sure_dash](https://github.com/YOUR_USERNAME/eau_sure_dash)
-
----
-
-<div align="center">
-
-### 🌟 Star this repo if you find it helpful!
-
-Made with ❤️ and Next.js
-
-</div>

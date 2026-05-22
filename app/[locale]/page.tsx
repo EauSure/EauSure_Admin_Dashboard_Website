@@ -1,12 +1,10 @@
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
-import { getTranslations } from 'next-intl/server';
 import { authOptions } from '@/lib/auth-options';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Check } from 'lucide-react';
 
 export default async function Home({
   params,
@@ -15,10 +13,9 @@ export default async function Home({
 }) {
   const { locale } = await params;
   const session = await getServerSession(authOptions);
-  const t = await getTranslations('home');
 
   if (session) {
-    redirect(session.user.role === 'admin' ? `/${locale}/admin` : `/${locale}/dashboard`);
+    redirect(`/${locale}/admin`);
   }
 
   return (
@@ -28,54 +25,28 @@ export default async function Home({
       </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-3xl font-bold">
-            {t('title')}
-          </CardTitle>
+          <CardTitle className="text-3xl font-bold">EauSure Admin</CardTitle>
           <CardDescription>
-            {t('subtitle')}
+            Interface web réservée à l&apos;administration de la plateforme.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
           <div className="space-y-3">
-            <Link href={`/${locale}/auth/signin`} className="block">
+            <Link href={`/${locale}/admin/signin`} className="block">
               <Button className="w-full" size="lg">
-                {t('signIn')}
-              </Button>
-            </Link>
-
-            <p className="text-center text-xs text-muted-foreground">
-              <Link href={`/${locale}/admin/signin`} className="hover:underline">
-                {t('adminPortal')}
-              </Link>
-            </p>
-
-            <Link href={`/${locale}/auth/signup`} className="block">
-              <Button variant="outline" className="w-full" size="lg">
-                {t('createAccount')}
+                Accéder à l&apos;interface administrateur
               </Button>
             </Link>
           </div>
 
           <div className="pt-6 border-t">
-            <h3 className="text-sm font-semibold mb-3">{t('features')}</h3>
+            <h3 className="text-sm font-semibold mb-3">Périmètre web</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center">
-                <Check className="h-4 w-4 text-primary mr-2" />
-                Secure authentication system
-              </li>
-              <li className="flex items-center">
-                <Check className="h-4 w-4 text-primary mr-2" />
-                Real-time sensor monitoring
-              </li>
-              <li className="flex items-center">
-                <Check className="h-4 w-4 text-primary mr-2" />
-                LoRaWAN connectivity
-              </li>
-              <li className="flex items-center">
-                <Check className="h-4 w-4 text-primary mr-2" />
-                ESP32-S3 integration
-              </li>
+              <li>Gestion des utilisateurs et des rôles</li>
+              <li>Supervision des nœuds et passerelles</li>
+              <li>Maintenance firmware, OTA et FUOTA</li>
+              <li>Incidents, tickets et diagnostic</li>
             </ul>
           </div>
         </CardContent>

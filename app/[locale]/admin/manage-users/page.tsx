@@ -1,813 +1,331 @@
 'use client';
 
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { useLocale } from 'next-intl';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Users, Search, ShieldCheck, ShieldOff, RefreshCw, UserCog } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useT } from '@/lib/useT';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { SectionCard } from '@/components/ui/section-card';
-import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronUp, House, MoreHorizontal, Phone, PlugZap, Search, Shield, UserRound, Users } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-type UserRole = 'admin' | 'user';
-type UserStatus = 'active' | 'suspended';
-type PresenceStatus = 'online' | 'away' | 'offline';
-
-interface AdminUser {
-  _id: string;
-  name: string;
+type User = {
+  id: string;
   email: string;
-  phone?: string;
-  address?: {
-    street?: string;
-    city?: string;
-    country?: string;
-  };
-  iotNodeCount?: number;
-  role: UserRole;
-  status: UserStatus;
-  presence?: {
-    status: PresenceStatus;
-    lastSeen?: string | Date | null;
-  };
-  image?: string;
-  createdAt?: string | Date;
-}
+  name: string;
+  role: 'user' | 'admin';
+  status: 'active' | 'suspended';
+  authProvider: string;
+  lastLogin: string | null;
+  createdAt: string | null;
+  adminNotes: string;
+};
 
-type RoleFilter = 'all' | 'admin' | 'operator';
-type StatusFilter = 'all' | UserStatus;
-type SortKey = 'name' | 'email' | 'role' | 'status' | 'createdAt';
-type SortDir = 'asc' | 'desc';
-type ActionType = 'role' | 'status' | 'delete';
-
-interface PendingAction {
-  type: ActionType;
-  user: AdminUser;
-}
-
-function getDiceBearAvatar(seed: string): string {
-  return `https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(seed)}`;
-}
-
-interface PresenceDotProps {
-  status: PresenceStatus;
-  showLabel?: boolean;
-  lastSeen?: string | Date | null;
-  onlineLabel: string;
-  awayLabel: string;
-  formatLastSeen: (value?: string | Date | null) => string;
-}
-
-function PresenceDot({
-  status,
-  showLabel = false,
-  lastSeen,
-  onlineLabel,
-  awayLabel,
-  formatLastSeen,
-}: PresenceDotProps) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="relative flex h-2.5 w-2.5 shrink-0">
-        {status === 'online' && (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-        )}
-        <span
-          className={cn(
-            'relative inline-flex h-2.5 w-2.5 rounded-full',
-            status === 'online' && 'bg-emerald-500',
-            status === 'away' && 'bg-amber-400',
-            status === 'offline' && 'bg-gray-300 dark:bg-gray-600'
-          )}
-        />
-      </span>
-
-      {showLabel && (
-        <span
-          className={cn(
-            'text-xs font-medium',
-            status === 'online' && 'text-emerald-600',
-            status === 'away' && 'text-amber-500',
-            status === 'offline' && 'text-gray-400'
-          )}
-        >
-          {status === 'online' && onlineLabel}
-          {status === 'away' && awayLabel}
-          {status === 'offline' && formatLastSeen(lastSeen)}
-        </span>
-      )}
-    </span>
-  );
-}
+type Meta = { page: number; limit: number; total: number; totalPages: number };
 
 export default function ManageUsersPage() {
-  const { data: session } = useSession();
-  const t = useT('manageUsers');
-  const tPresence = useT('presence');
-  const locale = useLocale();
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [sortBy, setSortBy] = useState<SortKey>('createdAt');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editRole, setEditRole] = useState<'user' | 'admin'>('user');
+  const [editStatus, setEditStatus] = useState<'active' | 'suspended'>('active');
+  const [editNotes, setEditNotes] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const res = await fetch('/api/admin/users', {
+      const params = new URLSearchParams({ page: String(page), limit: '20' });
+      if (search.trim()) params.set('search', search.trim());
+      if (roleFilter !== 'all') params.set('role', roleFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+
+      const res = await fetch(`/api/admin/users?${params.toString()}`, {
         credentials: 'include',
         cache: 'no-store',
       });
-
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(
-          typeof payload?.error === 'string' ? payload.error : `HTTP ${res.status}`
-        );
-      }
-
-      const data = (await res.json()) as AdminUser[];
-      setUsers(data);
+      if (!res.ok) throw new Error('Impossible de charger les utilisateurs.');
+      const payload = await res.json();
+      setUsers(Array.isArray(payload.users) ? payload.users : []);
+      setMeta(payload.meta || null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('error');
-      setError(message);
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Erreur de chargement.');
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [page, search, roleFilter, statusFilter]);
 
-  useEffect(() => {
-    void fetchUsers();
-  }, [fetchUsers]);
+  useEffect(() => { void fetchUsers(); }, [fetchUsers]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      void fetchUsers();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [fetchUsers]);
-
-  const filteredUsers = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    const filtered = users.filter((user) => {
-      const roleValue = user.role === 'admin' ? 'admin' : 'operator';
-      const roleMatches = roleFilter === 'all' || roleFilter === roleValue;
-      const statusMatches = statusFilter === 'all' || statusFilter === user.status;
-      const searchMatches =
-        !normalizedSearch ||
-        user.name.toLowerCase().includes(normalizedSearch) ||
-        user.email.toLowerCase().includes(normalizedSearch);
-
-      return roleMatches && statusMatches && searchMatches;
-    });
-
-    return [...filtered].sort((a, b) => {
-      const aValue =
-        sortBy === 'createdAt'
-          ? new Date(a.createdAt || 0).getTime()
-          : String(a[sortBy] || '').toLowerCase();
-      const bValue =
-        sortBy === 'createdAt'
-          ? new Date(b.createdAt || 0).getTime()
-          : String(b[sortBy] || '').toLowerCase();
-
-      if (aValue < bValue) return sortDir === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [users, searchTerm, roleFilter, statusFilter, sortBy, sortDir]);
-
-  const handleSort = (key: SortKey) => {
-    if (sortBy === key) {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-      return;
-    }
-    setSortBy(key);
-    setSortDir('asc');
+  const openEdit = (user: User) => {
+    setEditingUser(user);
+    setEditRole(user.role);
+    setEditStatus(user.status);
+    setEditNotes(user.adminNotes || '');
   };
 
-  const getRoleLabel = (role: UserRole) =>
-    role === 'admin' ? t('roles.admin') : t('roles.operator');
-
-  const getStatusLabel = (status: UserStatus) =>
-    status === 'active' ? t('statuses.active') : t('statuses.suspended');
-
-  const formatDate = (value?: string | Date) => {
-    if (!value) return '-';
-    return new Intl.DateTimeFormat(locale, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-    }).format(new Date(value));
-  };
-
-  const formatLastSeen = (value?: string | Date | null) => {
-    if (!value) return tPresence('never');
-
-    const timestamp = new Date(value).getTime();
-    if (Number.isNaN(timestamp)) return tPresence('never');
-
-    const diffMs = Date.now() - timestamp;
-
-    if (diffMs < 60_000) return tPresence('justNow');
-    if (diffMs < 3_600_000) return tPresence('minutesAgo', { count: Math.floor(diffMs / 60_000) });
-    if (diffMs < 86_400_000) return tPresence('hoursAgo', { count: Math.floor(diffMs / 3_600_000) });
-
-    return new Intl.DateTimeFormat(locale, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(timestamp));
-  };
-
-  const getPresenceStatus = (user: AdminUser): PresenceStatus => {
-    return user.presence?.status ?? 'offline';
-  };
-
-  const formatAddress = (user: AdminUser) => {
-    const street = user.address?.street?.trim();
-    const city = user.address?.city?.trim();
-    const country = user.address?.country?.trim();
-    const pieces = [street, city, country].filter((value): value is string => Boolean(value));
-    return pieces.length > 0 ? pieces.join(', ') : null;
-  };
-
-  const getNodeLabel = (count: number) => (count === 1 ? t('node') : t('nodes'));
-
-  const renderDetailCell = ({
-    icon,
-    label,
-    value,
-    muted,
-  }: {
-    icon: ReactNode;
-    label: string;
-    value: string;
-    muted?: boolean;
-  }) => (
-    <div className="flex flex-col gap-1 rounded-xl border bg-background p-3">
-      <span className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
-        {icon} {label}
-      </span>
-      <span className={cn('text-sm font-medium', muted && 'text-muted-foreground')}>{value}</span>
-    </div>
-  );
-
-  const openActionDialog = (type: ActionType, user: AdminUser) => {
-    setPendingAction({ type, user });
-    setIsDialogOpen(true);
-  };
-
-  const closeActionDialog = () => {
-    setIsDialogOpen(false);
-    setPendingAction(null);
-  };
-
-  const handleAction = async () => {
-    if (!pendingAction) return;
-    const { type, user } = pendingAction;
-    setIsActionLoading(true);
-
+  const saveEdit = async () => {
+    if (!editingUser) return;
+    setSaving(true);
     try {
-      if (type === 'delete') {
-        const res = await fetch(`/api/admin/users/${user._id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}));
-          throw new Error(typeof payload?.error === 'string' ? payload.error : t('error'));
-        }
-        toast.success(t('toast.deleted'));
-      } else {
-        const body =
-          type === 'role'
-            ? { role: user.role === 'admin' ? 'operator' : 'admin' }
-            : { status: user.status === 'active' ? 'suspended' : 'active' };
-
-        const res = await fetch(`/api/admin/users/${user._id}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}));
-          throw new Error(typeof payload?.error === 'string' ? payload.error : t('error'));
-        }
-
-        toast.success(type === 'role' ? t('toast.roleUpdated') : t('toast.statusUpdated'));
-      }
-
-      await fetchUsers();
-      closeActionDialog();
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: editRole, status: editStatus, adminNotes: editNotes }),
+      });
+      if (!res.ok) throw new Error('Impossible de mettre à jour.');
+      toast.success('Utilisateur mis à jour.');
+      setEditingUser(null);
+      void fetchUsers();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('error');
-      toast.error(message);
+      toast.error(err instanceof Error ? err.message : 'Erreur.');
     } finally {
-      setIsActionLoading(false);
+      setSaving(false);
     }
   };
 
-  const dialogCopy = useMemo(() => {
-    if (!pendingAction) {
-      return {
-        title: '',
-        description: '',
-        confirm: '',
-        confirmVariant: 'default' as 'default' | 'destructive',
-      };
-    }
-
-    if (pendingAction.type === 'delete') {
-      return {
-        title: t('dialog.deleteTitle'),
-        description: t('confirmDelete', { name: pendingAction.user.name }),
-        confirm: t('actions.delete'),
-        confirmVariant: 'destructive' as const,
-      };
-    }
-
-    if (pendingAction.type === 'status') {
-      const isSuspending = pendingAction.user.status === 'active';
-      return {
-        title: isSuspending ? t('dialog.suspendTitle') : t('dialog.reactivateTitle'),
-        description: isSuspending
-          ? t('confirmSuspend', { name: pendingAction.user.name })
-          : t('confirmReactivate', { name: pendingAction.user.name }),
-        confirm: isSuspending ? t('actions.suspend') : t('actions.reactivate'),
-        confirmVariant: isSuspending ? ('destructive' as const) : ('default' as const),
-      };
-    }
-
-    const promoting = pendingAction.user.role !== 'admin';
-    return {
-      title: t('dialog.changeRoleTitle'),
-      description: promoting
-        ? t('confirmPromote', { name: pendingAction.user.name })
-        : t('confirmDemote', { name: pendingAction.user.name }),
-      confirm: t('actions.changeRole'),
-      confirmVariant: 'default' as const,
-    };
-  }, [pendingAction, t]);
+  const formatDate = (value: string | null) => {
+    if (!value) return 'Jamais';
+    return new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   return (
-    <>
-      <div className="min-h-[calc(100vh-64px)] bg-gray-50/70 px-5 py-8 dark:bg-background sm:px-8 sm:py-10">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
-        <div className="mb-6 flex flex-col gap-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-500">EauSure · Users</p>
-          <h1 className="text-2xl font-black tracking-tight text-gray-900 dark:text-foreground">{t('title')}</h1>
-          <p className="mt-0.5 text-xs text-gray-400 dark:text-muted-foreground">{t('description')}</p>
+    <div className="min-h-screen bg-[#f8fafc] px-5 py-8 sm:px-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#0ea5e9]">Administration</p>
+            <h1 className="text-2xl font-bold text-[#0f172a]">Gestion des utilisateurs</h1>
+            <p className="mt-1 text-sm text-[#64748b]">
+              Gérez les rôles, statuts et notes des comptes enregistrés.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => void fetchUsers()}
+            className="gap-2 rounded-xl border-[#e2e8f0] bg-white text-[#0f172a] hover:bg-[#f0f9ff]"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Actualiser
+          </Button>
         </div>
 
-        <SectionCard>
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
-              <div>
-                <div className="relative">
-                  <Search className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2" />
-                  <Input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder={t('searchPlaceholder')}
-                    className="ps-9"
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+          <div className="relative flex-1 min-w-48">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Rechercher par email ou nom..."
+              className="pl-9 rounded-xl border-[#e2e8f0]"
+            />
+          </div>
+          <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-36 rounded-xl border-[#e2e8f0]">
+              <SelectValue placeholder="Rôle" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les rôles</SelectItem>
+              <SelectItem value="user">Utilisateur</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-36 rounded-xl border-[#e2e8f0]">
+              <SelectValue placeholder="Statut" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les statuts</SelectItem>
+              <SelectItem value="active">Actif</SelectItem>
+              <SelectItem value="suspended">Suspendu</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Stats pills */}
+        {meta && (
+          <div className="flex gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-sm shadow-sm">
+              <Users className="h-4 w-4 text-[#0ea5e9]" />
+              <span className="font-semibold text-[#0f172a]">{meta.total}</span>
+              <span className="text-[#64748b]">utilisateurs</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-sm shadow-sm">
+              <span className="text-[#64748b]">Page {meta.page} / {meta.totalPages}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-sm text-[#64748b]">
+              Chargement...
+            </div>
+          ) : users.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-20">
+              <Users className="h-10 w-10 text-[#cbd5e1]" />
+              <p className="text-sm text-[#64748b]">Aucun utilisateur trouvé.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-[#f1f5f9] bg-[#f8fafc]">
+                  <TableHead className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">Utilisateur</TableHead>
+                  <TableHead className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">Rôle</TableHead>
+                  <TableHead className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">Statut</TableHead>
+                  <TableHead className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">Fournisseur</TableHead>
+                  <TableHead className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">Dernière connexion</TableHead>
+                  <TableHead className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id} className="border-b border-[#f8fafc] hover:bg-[#f0f9ff]/40 transition-colors">
+                    <TableCell className="px-5 py-4">
+                      <p className="font-medium text-[#0f172a]">{user.name || '—'}</p>
+                      <p className="text-xs text-[#64748b]">{user.email}</p>
+                    </TableCell>
+                    <TableCell className="px-5 py-4">
+                      <Badge className={user.role === 'admin'
+                        ? 'border-[#bae6fd] bg-[#e0f2fe] text-[#0369a1]'
+                        : 'border-[#e2e8f0] bg-[#f8fafc] text-[#64748b]'
+                      }>
+                        {user.role === 'admin' ? 'Admin' : 'Utilisateur'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-5 py-4">
+                      <Badge className={user.status === 'active'
+                        ? 'border-[#bbf7d0] bg-[#dcfce7] text-[#15803d]'
+                        : 'border-[#fecaca] bg-[#fee2e2] text-[#dc2626]'
+                      }>
+                        {user.status === 'active' ? 'Actif' : 'Suspendu'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-sm text-[#64748b] capitalize">{user.authProvider}</TableCell>
+                    <TableCell className="px-5 py-4 text-sm text-[#64748b]">{formatDate(user.lastLogin)}</TableCell>
+                    <TableCell className="px-5 py-4 text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEdit(user)}
+                        className="gap-1.5 rounded-xl border-[#e2e8f0] text-[#0ea5e9] hover:bg-[#f0f9ff]"
+                      >
+                        <UserCog className="h-3.5 w-3.5" />
+                        Modifier
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {meta && meta.totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="rounded-xl border-[#e2e8f0]"
+            >
+              Précédent
+            </Button>
+            <span className="text-sm text-[#64748b]">Page {page} / {meta.totalPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= meta.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-xl border-[#e2e8f0]"
+            >
+              Suivant
+            </Button>
+          </div>
+        )}
+
+        {/* Edit modal */}
+        {editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-[#e2e8f0] bg-white p-6 shadow-xl">
+              <h2 className="mb-1 text-lg font-bold text-[#0f172a]">Modifier l'utilisateur</h2>
+              <p className="mb-5 text-sm text-[#64748b]">{editingUser.email}</p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[#0f172a]">Rôle</label>
+                  <Select value={editRole} onValueChange={(v) => setEditRole(v as 'user' | 'admin')}>
+                    <SelectTrigger className="rounded-xl border-[#e2e8f0]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Utilisateur</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[#0f172a]">Statut</label>
+                  <Select value={editStatus} onValueChange={(v) => setEditStatus(v as 'active' | 'suspended')}>
+                    <SelectTrigger className="rounded-xl border-[#e2e8f0]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">
+                        <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-[#22c55e]" />Actif</span>
+                      </SelectItem>
+                      <SelectItem value="suspended">
+                        <span className="flex items-center gap-2"><ShieldOff className="h-4 w-4 text-[#ef4444]" />Suspendu</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[#0f172a]">Note interne</label>
+                  <Textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Note visible uniquement par les admins..."
+                    className="min-h-24 rounded-xl border-[#e2e8f0]"
                   />
                 </div>
               </div>
 
-              <Select value={roleFilter} onValueChange={(value: RoleFilter) => setRoleFilter(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t('filterRole')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('allRoles')}</SelectItem>
-                  <SelectItem value="admin">{t('roles.admin')}</SelectItem>
-                  <SelectItem value="operator">{t('roles.operator')}</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={(value: StatusFilter) => setStatusFilter(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t('filterStatus')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('allStatuses')}</SelectItem>
-                  <SelectItem value="active">{t('statuses.active')}</SelectItem>
-                  <SelectItem value="suspended">{t('statuses.suspended')}</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="mt-6 flex gap-3">
+                <Button
+                  onClick={() => setEditingUser(null)}
+                  variant="outline"
+                  className="flex-1 rounded-xl border-[#e2e8f0]"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => void saveEdit()}
+                  disabled={saving}
+                  className="flex-1 rounded-xl bg-[#0ea5e9] text-white hover:bg-[#0284c7]"
+                >
+                  {saving ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+              </div>
             </div>
-
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm" className="active:scale-95 transition-transform duration-100" onClick={fetchUsers}>
-                {t('refresh')}
-              </Button>
-            </div>
-
-            <p className="text-muted-foreground text-sm">
-              {t('showing', { count: filteredUsers.length, total: users.length })}
-            </p>
           </div>
-        </SectionCard>
-
-        {loading ? (
-          <SectionCard>
-            <div className="space-y-3">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <Skeleton key={`users-skeleton-${index}`} className="h-12 w-full" />
-              ))}
-            </div>
-          </SectionCard>
-        ) : error ? (
-          <SectionCard>
-            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-              <Users className="text-muted-foreground size-10" />
-              <p className="text-sm text-destructive">{error}</p>
-              <Button onClick={fetchUsers}>{t('retry')}</Button>
-            </div>
-          </SectionCard>
-        ) : filteredUsers.length === 0 ? (
-          <SectionCard>
-            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-              <Users className="text-muted-foreground size-10" />
-              <p className="text-sm text-muted-foreground">{t('noUsers')}</p>
-            </div>
-          </SectionCard>
-        ) : (
-          <SectionCard>
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => handleSort('name')}>
-                        {t('columns.user')}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => handleSort('email')}>
-                        {t('columns.email')}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => handleSort('role')}>
-                        {t('columns.role')}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => handleSort('status')}>
-                        {t('columns.status')}
-                      </Button>
-                    </TableHead>
-                    <TableHead>{t('columns.presence')}</TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => handleSort('createdAt')}>
-                        {t('columns.createdAt')}
-                      </Button>
-                    </TableHead>
-                    <TableHead className="text-right">{t('columns.actions')}</TableHead>
-                    <TableHead className="w-12 text-right" />
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {filteredUsers.map((user) => {
-                    const isSelf = session?.user?.email === user.email;
-                    const avatarSeed = user.name || user.email;
-                    const isExpanded = expandedUserId === user._id;
-                    const presenceStatus = getPresenceStatus(user);
-                    const phoneValue = user.phone?.trim() || null;
-                    const addressValue = formatAddress(user);
-                    const nodeCount = user.iotNodeCount ?? 0;
-
-                    return (
-                      <Fragment key={user._id}>
-                        <TableRow key={`${user._id}-base`}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar>
-                                <AvatarImage src={user.image || getDiceBearAvatar(avatarSeed)} alt={user.name} />
-                                <AvatarFallback>{user.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium">{user.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={user.role === 'admin' ? 'default' : 'secondary'}
-                              className={user.role === 'admin' ? '' : 'bg-slate-600 text-white'}
-                            >
-                              {user.role === 'admin' ? <Shield className="size-3" /> : <UserRound className="size-3" />}
-                              {getRoleLabel(user.role)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={user.status === 'active' ? 'secondary' : 'destructive'}
-                              className={user.status === 'active' ? 'bg-emerald-600 text-white' : ''}
-                            >
-                              {getStatusLabel(user.status)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <PresenceDot
-                              status={presenceStatus}
-                              showLabel
-                              lastSeen={user.presence?.lastSeen}
-                              onlineLabel={tPresence('online')}
-                              awayLabel={tPresence('away')}
-                              formatLastSeen={formatLastSeen}
-                            />
-                          </TableCell>
-                          <TableCell>{formatDate(user.createdAt)}</TableCell>
-                          <TableCell className="text-right">
-                            {isSelf ? (
-                              <span className="text-muted-foreground text-xs">{t('cannotEditSelf')}</span>
-                            ) : (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon-sm" className="active:scale-95 transition-transform duration-100">
-                                    <MoreHorizontal className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onSelect={() => openActionDialog('role', user)}>
-                                    {t('actions.changeRole')}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onSelect={() => openActionDialog('status', user)}>
-                                    {user.status === 'active' ? t('actions.suspend') : t('actions.reactivate')}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem variant="destructive" onSelect={() => openActionDialog('delete', user)}>
-                                    {t('actions.delete')}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              className="active:scale-95 transition-transform duration-100"
-                              aria-label={isExpanded ? t('collapseUser') : t('expandUser')}
-                              onClick={() => setExpandedUserId((prev) => (prev === user._id ? null : user._id))}
-                            >
-                              {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-
-                        <TableRow key={`${user._id}-details`}>
-                          <TableCell colSpan={8} className="p-0">
-                            <AnimatePresence initial={false}>
-                              {isExpanded ? (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: 'auto' }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="grid grid-cols-1 gap-4 border-t bg-muted/30 px-4 pb-4 pt-4 sm:grid-cols-3"
-                                >
-                                  {renderDetailCell({
-                                    icon: <Phone className="h-3 w-3" />,
-                                    label: t('phone'),
-                                    value: phoneValue || '—',
-                                    muted: !phoneValue,
-                                  })}
-                                  {renderDetailCell({
-                                    icon: <House className="h-3 w-3" />,
-                                    label: t('address'),
-                                    value: addressValue || '—',
-                                    muted: !addressValue,
-                                  })}
-                                  {renderDetailCell({
-                                    icon: <PlugZap className="h-3 w-3" />,
-                                    label: t('iotNodes'),
-                                    value: `${nodeCount} ${getNodeLabel(nodeCount)}`,
-                                  })}
-                                </motion.div>
-                              ) : null}
-                            </AnimatePresence>
-                          </TableCell>
-                        </TableRow>
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="space-y-3 md:hidden">
-              {filteredUsers.map((user) => {
-                const isSelf = session?.user?.email === user.email;
-                const avatarSeed = user.name || user.email;
-                const isExpanded = expandedUserId === user._id;
-                const presenceStatus = getPresenceStatus(user);
-                const phoneValue = user.phone?.trim() || null;
-                const addressValue = formatAddress(user);
-                const nodeCount = user.iotNodeCount ?? 0;
-
-                return (
-                  <div key={user._id} className="space-y-3 rounded-lg border p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={user.image || getDiceBearAvatar(avatarSeed)} alt={user.name} />
-                          <AvatarFallback>{user.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{user.name}</p>
-                          <p className="text-muted-foreground truncate text-sm">{user.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {!isSelf && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon-sm" className="active:scale-95 transition-transform duration-100">
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => openActionDialog('role', user)}>
-                                {t('actions.changeRole')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => openActionDialog('status', user)}>
-                                {user.status === 'active' ? t('actions.suspend') : t('actions.reactivate')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive" onSelect={() => openActionDialog('delete', user)}>
-                                {t('actions.delete')}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          className="active:scale-95 transition-transform duration-100"
-                          aria-label={isExpanded ? t('collapseUser') : t('expandUser')}
-                          onClick={() => setExpandedUserId((prev) => (prev === user._id ? null : user._id))}
-                        >
-                          {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Badge
-                        variant={user.role === 'admin' ? 'default' : 'secondary'}
-                        className={user.role === 'admin' ? '' : 'bg-slate-600 text-white'}
-                      >
-                        {getRoleLabel(user.role)}
-                      </Badge>
-                      <Badge
-                        variant={user.status === 'active' ? 'secondary' : 'destructive'}
-                        className={user.status === 'active' ? 'bg-emerald-600 text-white' : ''}
-                      >
-                        {getStatusLabel(user.status)}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={
-                          presenceStatus === 'online'
-                            ? 'border-emerald-500/60 text-emerald-700'
-                            : presenceStatus === 'away'
-                              ? 'border-amber-500/60 text-amber-700'
-                              : ''
-                        }
-                      >
-                        <PresenceDot
-                          status={presenceStatus}
-                          lastSeen={user.presence?.lastSeen}
-                          onlineLabel={tPresence('online')}
-                          awayLabel={tPresence('away')}
-                          formatLastSeen={formatLastSeen}
-                        />
-                        <span className="ml-2">
-                          {presenceStatus === 'online' && tPresence('online')}
-                          {presenceStatus === 'away' && tPresence('away')}
-                          {presenceStatus === 'offline' && formatLastSeen(user.presence?.lastSeen)}
-                        </span>
-                      </Badge>
-                      <Badge variant="outline">{formatDate(user.createdAt)}</Badge>
-                    </div>
-
-                    {isSelf && (
-                      <p className="text-muted-foreground text-xs">{t('cannotEditSelf')}</p>
-                    )}
-
-                    <AnimatePresence initial={false}>
-                      {isExpanded ? (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="grid grid-cols-1 gap-4 border-t bg-muted/30 px-4 pb-4 pt-4 sm:grid-cols-3"
-                        >
-                          {renderDetailCell({
-                            icon: <Phone className="h-3 w-3" />,
-                            label: t('phone'),
-                            value: phoneValue || '—',
-                            muted: !phoneValue,
-                          })}
-                          {renderDetailCell({
-                            icon: <House className="h-3 w-3" />,
-                            label: t('address'),
-                            value: addressValue || '—',
-                            muted: !addressValue,
-                          })}
-                          {renderDetailCell({
-                            icon: <PlugZap className="h-3 w-3" />,
-                            label: t('iotNodes'),
-                            value: `${nodeCount} ${getNodeLabel(nodeCount)}`,
-                          })}
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </div>
-                );
-              })}
-            </div>
-          </SectionCard>
         )}
-        </div>
       </div>
-
-      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{dialogCopy.title}</AlertDialogTitle>
-            <AlertDialogDescription>{dialogCopy.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={closeActionDialog}>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              className={dialogCopy.confirmVariant === 'destructive' ? 'bg-destructive hover:bg-destructive/90' : ''}
-              onClick={handleAction}
-              disabled={isActionLoading}
-            >
-              {isActionLoading ? t('working') : dialogCopy.confirm}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    </div>
   );
 }

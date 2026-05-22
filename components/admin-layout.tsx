@@ -2,10 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { signOut, useSession } from 'next-auth/react';
-import { useLocale } from 'next-intl';
-import { Shield, Users, Activity, Rocket, Stethoscope, Wrench } from 'lucide-react';
+import { Shield, Activity, Rocket, LifeBuoy, Users, HardDrive } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { AdminLanguageSelector } from '@/components/admin-language-selector';
 import { useT } from '@/lib/useT';
 
 type AdminLayoutProps = {
@@ -14,7 +12,7 @@ type AdminLayoutProps = {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const { data: session } = useSession();
-  const locale = useLocale();
+  const locale = 'fr';
   const t = useT('admin');
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const adminSessionActive = session?.user?.role === 'admin';
@@ -24,76 +22,46 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       sessionStorage.removeItem('admin_session_active');
       return;
     }
-
     sessionStorage.setItem('admin_session_active', 'true');
-
-    return () => {
-      sessionStorage.removeItem('admin_session_active');
-    };
+    return () => { sessionStorage.removeItem('admin_session_active'); };
   }, [adminSessionActive]);
 
   useEffect(() => {
-    if (!adminSessionActive) {
-      return;
-    }
-
-    const clearTimer = () => {
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-      }
-    };
-
+    if (!adminSessionActive) return;
+    const clearTimer = () => { if (idleTimerRef.current) clearTimeout(idleTimerRef.current); };
     const scheduleLogout = () => {
       clearTimer();
-
       idleTimerRef.current = setTimeout(async () => {
-        try {
-          await fetch('/api/user/heartbeat/offline', { keepalive: true, method: 'POST' });
-        } catch {
-          // Best-effort offline signal; sign-out still runs.
-        }
-
         sessionStorage.removeItem('admin_session_active');
         await signOut({ callbackUrl: `/${locale}/admin/signin` });
       }, 2 * 60 * 60 * 1000);
     };
-
-    const handleActivity = () => {
-      scheduleLogout();
-    };
-
-    const handleUnload = () => {
-      sessionStorage.removeItem('admin_session_active');
-      navigator.sendBeacon('/api/user/heartbeat/offline');
-    };
-
+    const handleActivity = () => scheduleLogout();
+    const handleUnload = () => sessionStorage.removeItem('admin_session_active');
     scheduleLogout();
-
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
-    events.forEach((eventName) => window.addEventListener(eventName, handleActivity));
+    events.forEach((e) => window.addEventListener(e, handleActivity));
     window.addEventListener('beforeunload', handleUnload);
-
     return () => {
       clearTimer();
-      events.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, [adminSessionActive, locale]);
 
   const navigation = [
-    { name: t('title'), href: `/${locale}/admin`, icon: Shield },
-    { name: t('manageUsers.title'), href: `/${locale}/admin/manage-users`, icon: Users },
-    { name: t('superviseSystem.title'), href: `/${locale}/admin/supervise-system`, icon: Activity },
-    { name: t('deployUpdates.title'), href: `/${locale}/admin/deploy-updates`, icon: Rocket },
-    { name: t('maintenance.title'), href: `/${locale}/admin/maintenance`, icon: Wrench },
-    { name: t('diagnoseProblems.title'), href: `/${locale}/admin/diagnose-problems`, icon: Stethoscope },
+    { name: 'Console admin',          href: `/${locale}/admin`,                      icon: Shield },
+    { name: 'Supervision système',    href: `/${locale}/admin/supervise-system`,      icon: Activity },
+    { name: 'Déploiement firmware',   href: `/${locale}/admin/deploy-updates`,        icon: Rocket },
+    { name: 'Support technique',      href: `/${locale}/admin/diagnose-problems`,     icon: LifeBuoy },
+    { name: 'Gestion utilisateurs',   href: `/${locale}/admin/manage-users`,          icon: Users },
+    { name: 'Pré-enregistrement',     href: `/${locale}/admin/pre-register`,          icon: HardDrive },
   ];
 
   return (
     <DashboardLayout
       navigation={navigation}
       sidebarStorageKey="adminSidebarCollapsed"
-      headerActions={<AdminLanguageSelector />}
       userDropdownProps={{
         profileHref: `/${locale}/admin`,
         settingsHref: `/${locale}/admin`,

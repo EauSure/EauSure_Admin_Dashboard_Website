@@ -1,5 +1,4 @@
 import type { NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-options';
 
@@ -72,6 +71,7 @@ export interface GatewayConfig {
 }
 
 export interface Gateway {
+  _id?: string;
   gatewayId: string;
   name: string;
   ownerId: string;
@@ -95,6 +95,7 @@ export interface GatewayStatus {
 }
 
 export interface IotNode {
+  _id?: string;
   nodeId: string;
   name: string;
   gatewayId: string;
@@ -155,24 +156,11 @@ function createQueryString(query?: ApiFetchOptions['query']) {
 async function getBearerToken(): Promise<string> {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user) {
+  if (!session?.user || !session.accessToken) {
     throw new ExternalApiError('Unauthorized', 401);
   }
 
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new ExternalApiError('JWT_SECRET is not configured', 500);
-  }
-
-  return jwt.sign(
-    {
-      id: session.user.id,
-      email: session.user.email,
-      role: session.user.role,
-    },
-    secret,
-    { expiresIn: '1h' }
-  );
+  return session.accessToken;
 }
 
 function errorMessageFromPayload(payload: unknown, fallback: string) {
@@ -239,4 +227,3 @@ export function toRouteError(error: unknown) {
     status: 500,
   };
 }
-

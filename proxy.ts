@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isSameOriginRequest } from '@/lib/csrf';
 import { sessionCookieName } from '@/lib/session-cookie';
 
-const locales = ['fr', 'en', 'ar'] as const;
+const locales = ['fr'] as const;
 const defaultLocale = 'fr';
+const legacyLocales = ['en', 'ar'] as const;
 
 const PUBLIC_PATHS = [
   '/signin',
@@ -22,7 +23,6 @@ const PUBLIC_PATHS = [
   '/api/signup',
   '/api/forgot-password',
   '/api/reset-password',
-  '/api/locale',
   '/_next',
   '/favicon.ico',
 ] as const;
@@ -31,6 +31,13 @@ function getLocaleFromPath(pathname: string): (typeof locales)[number] | null {
   const firstSegment = pathname.split('/')[1];
   return locales.includes(firstSegment as (typeof locales)[number])
     ? (firstSegment as (typeof locales)[number])
+    : null;
+}
+
+function getLegacyLocaleFromPath(pathname: string): (typeof legacyLocales)[number] | null {
+  const firstSegment = pathname.split('/')[1];
+  return legacyLocales.includes(firstSegment as (typeof legacyLocales)[number])
+    ? (firstSegment as (typeof legacyLocales)[number])
     : null;
 }
 
@@ -78,7 +85,6 @@ function isPublicApiPath(pathname: string): boolean {
     '/api/signup',
     '/api/forgot-password',
     '/api/reset-password',
-    '/api/locale',
   ].some((publicPath) => {
     return withoutLocale === publicPath || withoutLocale.startsWith(`${publicPath}/`);
   });
@@ -152,6 +158,14 @@ export async function proxy(request: NextRequest) {
 
   if (isStaticAsset(pathname)) {
     return NextResponse.next();
+  }
+
+  const legacyLocale = getLegacyLocaleFromPath(pathname);
+  if (legacyLocale) {
+    const stripped = pathname.slice(legacyLocale.length + 1) || '/';
+    const normalizedPath = stripped.startsWith('/') ? stripped : `/${stripped}`;
+    const redirectedPath = normalizedPath === '/' ? `/${defaultLocale}` : `/${defaultLocale}${normalizedPath}`;
+    return NextResponse.redirect(new URL(redirectedPath, request.url));
   }
 
   if (pathname.startsWith('/api/')) {

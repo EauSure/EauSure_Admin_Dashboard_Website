@@ -1,254 +1,172 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocale } from 'next-intl';
-import {
-  Users,
-  Activity,
-  Rocket,
-  Stethoscope,
-  ShieldCheck,
-  Cpu,
-  AlertTriangle,
-  PackagePlus,
-  CloudDownload,
-  Wrench,
-  UserPlus,
-  Droplets,
-  TicketCheck,
-  Database,
-  Network,
-} from 'lucide-react';
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import { useT } from '@/lib/useT';
+import { Activity, HardDrive, LifeBuoy, Rocket, Users } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { Gateway, IotNode } from '@/lib/api/client';
+
+type AdminProfile = { name?: string; email?: string; role?: string };
 
 export default function AdminDashboardPage() {
-  const t = useT('admin');
   const locale = useLocale();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<AdminProfile | null>(null);
+  const [gateways, setGateways] = useState<Gateway[]>([]);
+  const [nodes, setNodes] = useState<IotNode[]>([]);
 
-  const adminModules = [
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [profileRes, gatewaysRes] = await Promise.all([
+          fetch('/api/user/me', { credentials: 'include', cache: 'no-store' }),
+          fetch('/api/eausure/gateways', { credentials: 'include', cache: 'no-store' }),
+        ]);
+        const profileData = profileRes.ok ? await profileRes.json() : null;
+        const gatewaysData = gatewaysRes.ok ? await gatewaysRes.json() : [];
+        const gatewayList = Array.isArray(gatewaysData) ? gatewaysData : [];
+        const nodeResponses = await Promise.all(
+          gatewayList.map(async (gw) => {
+            const r = await fetch(`/api/eausure/gateways/${encodeURIComponent(gw._id || gw.gatewayId)}/nodes`, {
+              credentials: 'include', cache: 'no-store',
+            });
+            return r.ok ? await r.json() : [];
+          })
+        );
+        if (cancelled) return;
+        setProfile(profileData);
+        setGateways(gatewayList);
+        setNodes(nodeResponses.flat().filter((n) => n && typeof n === 'object'));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const stats = useMemo(() => ({
+    gatewaysOnline: gateways.filter((g) => g.status?.online).length,
+    activeNodes: nodes.filter((n) => n.status?.active).length,
+    firmwareVersions: new Set(nodes.map((n) => n.status?.firmwareVersion).filter(Boolean)).size,
+  }), [gateways, nodes]);
+
+  const modules = [
     {
-      title: t('manageUsers.title'),
-      description: t('manageUsers.description'),
-      href: `/${locale}/admin/manage-users`,
-      icon: Users,
-    },
-    {
-      title: t('superviseSystem.title'),
-      description: t('superviseSystem.description'),
+      title: 'Supervision système',
+      description: 'Inventaire des passerelles et nœuds, mesure à la demande, filtres par statut.',
       href: `/${locale}/admin/supervise-system`,
       icon: Activity,
+      color: '#22c55e',
+      bg: '#f0fdf4',
     },
     {
-      title: t('deployUpdates.title'),
-      description: t('deployUpdates.description'),
+      title: 'Déploiement firmware',
+      description: 'Publication des releases OTA/FUOTA et suivi de propagation sur le parc.',
       href: `/${locale}/admin/deploy-updates`,
       icon: Rocket,
+      color: '#f59e0b',
+      bg: '#fffbeb',
     },
     {
-      title: t('diagnoseProblems.title'),
-      description: t('diagnoseProblems.description'),
+      title: 'Support technique',
+      description: 'Tickets d\'assistance, chat en direct avec les utilisateurs, notes internes.',
       href: `/${locale}/admin/diagnose-problems`,
-      icon: Stethoscope,
+      icon: LifeBuoy,
+      color: '#0ea5e9',
+      bg: '#f0f9ff',
+    },
+    {
+      title: 'Gestion utilisateurs',
+      description: 'Rôles, statuts, suspension de comptes et notes administratives.',
+      href: `/${locale}/admin/manage-users`,
+      icon: Users,
+      color: '#8b5cf6',
+      bg: '#faf5ff',
+    },
+    {
+      title: 'Pré-enregistrement matériel',
+      description: 'Enregistrement des secrets de fabrication avant déploiement terrain.',
+      href: `/${locale}/admin/pre-register`,
+      icon: HardDrive,
+      color: '#ef4444',
+      bg: '#fef2f2',
     },
   ];
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-gray-50/70 px-5 py-8 dark:bg-background sm:px-8 sm:py-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0 }}>
-          <div className="mb-6 flex flex-col gap-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-500">EauSure · Admin</p>
-            <h1 className="text-2xl font-black tracking-tight text-gray-900 dark:text-foreground">{t('title')}</h1>
-            <p className="mt-0.5 text-xs text-gray-400 dark:text-muted-foreground">{t('description')}</p>
-          </div>
-        </motion.div>
+    <div className="min-h-screen bg-[#f8fafc] px-5 py-8 sm:px-8">
+      <div className="mx-auto max-w-5xl space-y-8">
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {adminModules.map((module, index) => (
-            <motion.div
-              key={module.href}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.07 + index * 0.07 }}
-              whileHover={{ y: -2, boxShadow: '0 8px 30px rgba(0,0,0,0.08)' }}
-              whileTap={{ y: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
-              className="group relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border dark:bg-card"
-            >
-              <div className="py-5 ps-6 pe-5">
-                <div className="mb-5 flex items-center justify-between">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">Admin module</span>
-                    <span className="text-base font-bold text-gray-900 dark:text-foreground">{module.title}</span>
-                  </div>
-                  <div className="rounded-lg bg-indigo-50 p-2 transition-transform duration-200 group-hover:scale-110 dark:bg-indigo-500/10">
-                    <module.icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                </div>
-                <p className="mb-5 text-sm text-gray-500 dark:text-muted-foreground">{module.description}</p>
-                <Button asChild className="active:scale-95 transition-transform duration-100">
-                  <Link href={module.href}>Open</Link>
-                </Button>
-              </div>
-            </motion.div>
-          ))}
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#0ea5e9]">EauSûre</p>
+            <h1 className="text-2xl font-bold text-[#0f172a]">Console administrateur</h1>
+            <p className="mt-1 text-sm text-[#64748b]">
+              Supervision, maintenance et gestion du réseau d'équipements EauSûre.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-5 py-3 shadow-sm">
+            <p className="text-[11px] uppercase tracking-wider text-[#94a3b8]">Session admin</p>
+            <p className="mt-0.5 font-semibold text-[#0f172a]">{profile?.name || 'Admin'}</p>
+            <p className="text-xs text-[#64748b]">{profile?.email || ''}</p>
+          </div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.4 }}
-          className="rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border dark:bg-card"
-        >
-          <div className="flex flex-col gap-1 border-b border-gray-100 px-6 py-4 dark:border-border">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-500" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">État global</span>
-            </div>
-            <h2 className="text-base font-bold text-gray-900 dark:text-foreground">Santé du système EauSûre</h2>
-            <p className="text-xs text-gray-400 dark:text-muted-foreground">Synthèse en temps réel de la plateforme et des passerelles déployées en Tunisie.</p>
-          </div>
-
-          <div className="grid divide-y divide-gray-100 dark:divide-border md:grid-cols-4 md:divide-x md:divide-y-0">
-            <div className="flex flex-col gap-1 px-6 py-5">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
-                <Activity className="h-3.5 w-3.5" /> Disponibilité
-              </div>
-              <p className="text-2xl font-black text-gray-900 dark:text-foreground">99,87 %</p>
-              <p className="text-xs text-emerald-600">Sur les 30 derniers jours</p>
-            </div>
-            <div className="flex flex-col gap-1 px-6 py-5">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
-                <Cpu className="h-3.5 w-3.5" /> Capteurs actifs
-              </div>
-              <p className="text-2xl font-black text-gray-900 dark:text-foreground">142 / 150</p>
-              <p className="text-xs text-gray-500 dark:text-muted-foreground">8 hors ligne (5,3 %)</p>
-            </div>
-            <div className="flex flex-col gap-1 px-6 py-5">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
-                <AlertTriangle className="h-3.5 w-3.5" /> Alertes aujourd&apos;hui
-              </div>
-              <p className="text-2xl font-black text-gray-900 dark:text-foreground">7</p>
-              <p className="text-xs text-amber-600">2 critiques · 5 mineures</p>
-            </div>
-            <div className="flex flex-col gap-1 px-6 py-5">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
-                <Network className="h-3.5 w-3.5" /> Passerelles LoRa
-              </div>
-              <p className="text-2xl font-black text-gray-900 dark:text-foreground">12 / 12</p>
-              <p className="text-xs text-emerald-600">Toutes opérationnelles</p>
-            </div>
-          </div>
-        </motion.div>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.45 }}
-            className="rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border dark:bg-card lg:col-span-2"
-          >
-            <div className="flex flex-col gap-1 border-b border-gray-100 px-6 py-4 dark:border-border">
-              <div className="flex items-center gap-2">
-                <Droplets className="h-4 w-4 text-indigo-500" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">Qualité de l&apos;eau · cette semaine</span>
-              </div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-foreground">Relevés moyens pH & turbidité</h2>
-              <p className="text-xs text-gray-400 dark:text-muted-foreground">Moyennes journalières consolidées sur l&apos;ensemble des sites tunisiens.</p>
-            </div>
-
-            <div className="px-3 pb-5 pt-4 sm:px-6">
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={[
-                      { day: 'Lun', ph: 7.2, turbidity: 2.1 },
-                      { day: 'Mar', ph: 7.3, turbidity: 1.9 },
-                      { day: 'Mer', ph: 7.1, turbidity: 2.4 },
-                      { day: 'Jeu', ph: 7.4, turbidity: 2.0 },
-                      { day: 'Ven', ph: 7.2, turbidity: 2.6 },
-                      { day: 'Sam', ph: 7.5, turbidity: 1.8 },
-                      { day: 'Dim', ph: 7.3, turbidity: 2.0 },
-                    ]}
-                    margin={{ top: 10, right: 20, left: -10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.25)" />
-                    <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="left" stroke="#6366f1" fontSize={12} tickLine={false} axisLine={false} domain={[6.5, 8]} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#0ea5e9" fontSize={12} tickLine={false} axisLine={false} domain={[0, 4]} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'rgba(15, 23, 42, 0.92)',
-                        border: 'none',
-                        borderRadius: 12,
-                        color: '#e2e8f0',
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend
-                      verticalAlign="top"
-                      align="right"
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: 12, color: '#64748b' }}
-                    />
-                    <Line yAxisId="left" type="monotone" dataKey="ph" name="pH moyen" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    <Line yAxisId="right" type="monotone" dataKey="turbidity" name="Turbidité (NTU)" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.5 }}
-            className="rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-border dark:bg-card"
-          >
-            <div className="flex flex-col gap-1 border-b border-gray-100 px-6 py-4 dark:border-border">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-indigo-500" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">Activité récente</span>
-              </div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-foreground">Flux opérationnel</h2>
-              <p className="text-xs text-gray-400 dark:text-muted-foreground">Derniers événements consignés sur la plateforme.</p>
-            </div>
-
-            <ul className="divide-y divide-gray-100 dark:divide-border">
+        {/* KPI row */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-2xl" />
+            ))
+          ) : (
+            <>
               {[
-                { icon: AlertTriangle, color: 'text-amber-500 bg-amber-50 dark:bg-amber-500/10', title: 'Alerte pH élevé · CAP-PH-018', detail: 'Site Sfax — 7,9 pH détecté', time: 'il y a 4 min' },
-                { icon: CloudDownload, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10', title: 'Mise à jour v2.4.1 déployée', detail: '6 capteurs Tunis Nord', time: 'il y a 22 min' },
-                { icon: PackagePlus, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10', title: 'Nouvel équipement enregistré', detail: 'Passerelle LoRa GW-SOU-04', time: 'il y a 1 h' },
-                { icon: TicketCheck, color: 'text-sky-500 bg-sky-50 dark:bg-sky-500/10', title: 'Réclamation résolue · #TCK-1042', detail: 'Coupure réseau Bizerte', time: 'il y a 2 h' },
-                { icon: UserPlus, color: 'text-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-500/10', title: 'Nouvel opérateur activé', detail: 'amine.bouzid@eausure.tn', time: 'il y a 3 h' },
-                { icon: Wrench, color: 'text-orange-500 bg-orange-50 dark:bg-orange-500/10', title: 'Maintenance préventive terminée', detail: 'Capteur turbidité TUR-007', time: 'il y a 5 h' },
-                { icon: Database, color: 'text-slate-500 bg-slate-100 dark:bg-slate-500/10', title: 'Sauvegarde MongoDB effectuée', detail: '4,2 Go archivés', time: 'il y a 7 h' },
-                { icon: Network, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10', title: 'Passerelle Sousse reconnectée', detail: 'GW-SOU-02 · liaison rétablie', time: 'hier 21:47' },
-              ].map((event) => (
-                <li key={event.title} className="flex items-start gap-3 px-6 py-3">
-                  <div className={`mt-0.5 rounded-lg p-2 ${event.color}`}>
-                    <event.icon className="h-3.5 w-3.5" />
+                { label: 'Passerelles', value: gateways.length, sub: `${stats.gatewaysOnline} en ligne`, color: '#0ea5e9' },
+                { label: 'Nœuds', value: nodes.length, sub: `${stats.activeNodes} actifs`, color: '#22c55e' },
+                { label: 'Versions firmware', value: stats.firmwareVersions, sub: 'sur le parc', color: '#f59e0b' },
+                { label: 'Rôle', value: 'Admin', sub: profile?.email?.split('@')[0] || '', color: '#8b5cf6' },
+              ].map((card) => (
+                <div key={card.label} className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94a3b8]">{card.label}</p>
+                  <p className="mt-2 text-2xl font-bold text-[#0f172a]">{card.value}</p>
+                  <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-[#f1f5f9]">
+                    <div className="h-full w-3/4 rounded-full" style={{ backgroundColor: card.color }} />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-foreground">{event.title}</p>
-                    <p className="truncate text-xs text-gray-500 dark:text-muted-foreground">{event.detail}</p>
-                  </div>
-                  <span className="shrink-0 text-[11px] text-gray-400 dark:text-muted-foreground">{event.time}</span>
-                </li>
+                  <p className="mt-1.5 text-xs text-[#64748b]">{card.sub}</p>
+                </div>
               ))}
-            </ul>
-          </motion.div>
+            </>
+          )}
+        </div>
+
+        {/* Modules grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {modules.map((mod) => (
+            <Link key={mod.href} href={mod.href}>
+              <div className="group h-full cursor-pointer rounded-2xl border border-[#e2e8f0] bg-white p-5 shadow-sm transition-all hover:border-[#bae6fd] hover:shadow-md">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div
+                    className="flex h-11 w-11 items-center justify-center rounded-xl"
+                    style={{ backgroundColor: mod.bg }}
+                  >
+                    <mod.icon className="h-5 w-5" style={{ color: mod.color }} />
+                  </div>
+                  <span className="rounded-full border border-[#e2e8f0] px-2.5 py-0.5 text-[10px] font-medium text-[#64748b]">
+                    Admin
+                  </span>
+                </div>
+                <h2 className="font-semibold text-[#0f172a] group-hover:text-[#0ea5e9] transition-colors">
+                  {mod.title}
+                </h2>
+                <p className="mt-1.5 text-sm text-[#64748b] leading-relaxed">{mod.description}</p>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </div>
